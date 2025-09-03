@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 def lambda_handler(event, context):
-    # CORS headers
+    
     headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
