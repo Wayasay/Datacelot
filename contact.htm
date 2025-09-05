@@ -47,6 +47,21 @@
       border-radius: 4px;
     }
 
+    /* Checkbox style */
+    .consent-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 15px 0;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .consent-container input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+
     button {
       width: 100%;
       padding: 10px;
@@ -98,6 +113,12 @@
     <label for="message">Message:</label>
     <textarea id="message" name="message" rows="4" required></textarea>
 
+    <!-- Consent Checkbox -->
+    <div class="consent-container">
+      <input type="checkbox" id="consent" name="consent" required>
+      <label for="consent">Tick yes if you confirm to accept email from us</label>
+    </div>
+
     <button type="submit" id="submitBtn">Send Message</button>
 
     <div id="responseMessage"></div>
@@ -124,7 +145,8 @@
         name: document.getElementById('name').value,
         email: document.getElementById('email').value,
         phone: document.getElementById('phone').value,
-        message: document.getElementById('message').value
+        message: document.getElementById('message').value,
+        consent: document.getElementById('consent').checked
       };
 
       try {
