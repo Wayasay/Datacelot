@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 def lambda_handler(event, context):
-    
+    # CORS headers
     headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
@@ -115,7 +115,7 @@ def process_contact_form(event, headers):
             })
         }
     
-    # Insert into DynamoDB
+    # Insert into DynamoDB and send emails
     try:
         submission_id = insert_contact_record(name, email, phone, message)
         
@@ -140,6 +140,7 @@ def process_contact_form(event, headers):
                 <h2>Thank You!</h2>
                 <p>Your message has been sent successfully.</p>
                 <p><strong>Submission ID:</strong> {submission_id}</p>
+                <p>You will receive a confirmation email shortly.</p>
                 <a href="javascript:history.back()">← Go Back</a>
             </body>
             </html>
@@ -177,21 +178,24 @@ def insert_contact_record(name, email, phone, message):
         }
     )
     
-    # Send email notification
-    send_email_notification(submission_id, name, email, phone, message, timestamp)
+    # Send notification email to admin
+    send_admin_notification(submission_id, name, email, phone, message, timestamp)
+    
+    # Send confirmation email to user
+    send_user_confirmation(name, email, submission_id)
     
     return submission_id
 
-def send_email_notification(submission_id, name, email, phone, message, timestamp):
+def send_admin_notification(submission_id, name, email, phone, message, timestamp):
+    """Send notification email to admin about new submission"""
     ses_client = boto3.client('ses', region_name='eu-north-1')
     
-    RECIPIENT_EMAIL = 'f.okoye@icloud.com'
-    SOURCE_EMAIL = 'f.okoye@icloud.com'
+    ADMIN_EMAIL = 'okoyefortune99@gmail.com'
+    SOURCE_EMAIL = 'okoyefortune99@gmail.com'
     
-    # Email content
     subject = f"New Contact Form Submission from {name}"
     
-    email_body = f"""
+    admin_body = f"""
 New contact form submission received:
 
 Submission Details:
@@ -205,52 +209,61 @@ Message:
 {message}
 
 You can reply directly to this email to respond to {name}.
-View all submissions in your DynamoDB table: ContactFormSubmissions
     """
     
-    html_body = f"""
-    <html>
-    <body>
-        <h2>New Contact Form Submission</h2>
-        
-        <h3>Submission Details:</h3>
-        <table border="1" style="border-collapse: collapse; padding: 10px;">
-            <tr><td><strong>Submission ID:</strong></td><td>{submission_id}</td></tr>
-            <tr><td><strong>Timestamp:</strong></td><td>{timestamp}</td></tr>
-            <tr><td><strong>Name:</strong></td><td>{name}</td></tr>
-            <tr><td><strong>Email:</strong></td><td><a href="mailto:{email}">{email}</a></td></tr>
-            <tr><td><strong>Phone:</strong></td><td>{phone or 'Not provided'}</td></tr>
-        </table>
-        
-        <h3>Message:</h3>
-        <p style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #007bff;">
-            {message.replace(chr(10), '<br>')}
-        </p>
-        
-        <hr>
-        <p><em>You can reply directly to this email to respond to {name}.</em></p>
-        <p><small>View all submissions in your DynamoDB table: ContactFormSubmissions</small></p>
-    </body>
-    </html>
+    try:
+        ses_client.send_email(
+            Destination={'ToAddresses': [ADMIN_EMAIL]},
+            Message={
+                'Body': {'Text': {'Data': admin_body}},
+                'Subject': {'Data': subject}
+            },
+            Source=SOURCE_EMAIL,
+            ReplyToAddresses=[email]
+        )
+        print(f"Admin notification sent for submission: {submission_id}")
+    except Exception as e:
+        print(f"Failed to send admin notification: {str(e)}")
+
+def send_user_confirmation(name, email, submission_id):
+    """Send confirmation email to the user who submitted the form"""
+    ses_client = boto3.client('ses', region_name='eu-north-1')
+    
+    SOURCE_EMAIL = 'okoyefortune99@gmail.com'
+    
+    subject = "Thank you for contacting Datacelot"
+    
+    text_body = f"""
+Hi {name},
+
+Thank you for reaching out to Datacelot. We've received your message and appreciate you taking the time to contact us.
+
+Our team will review your inquiry and get back to you within 24 hours during business days.
+
+Your submission reference: {submission_id}
+
+About Datacelot:
+We specialize in data solutions and analytics to help businesses make informed decisions.
+
+Best regards,
+The Datacelot Team
+
+---
+This is an automated confirmation email.
     """
     
     try:
         response = ses_client.send_email(
-            Destination={'ToAddresses': [RECIPIENT_EMAIL]},
+            Destination={'ToAddresses': [email]},
             Message={
-                'Body': {
-                    'Text': {'Data': email_body},
-                    'Html': {'Data': html_body}
-                },
+                'Body': {'Text': {'Data': text_body}},
                 'Subject': {'Data': subject}
             },
-            Source=SOURCE_EMAIL,
-            ReplyToAddresses=[email]  # Allows direct reply to the submitter
+            Source=SOURCE_EMAIL
         )
-        print(f"Email sent successfully. MessageId: {response['MessageId']}")
+        print(f"Confirmation email sent to {email}. MessageId: {response['MessageId']}")
         return response['MessageId']
         
     except Exception as e:
-        print(f"Failed to send email: {str(e)}")
-        # Don't fail the whole function if email fails
+        print(f"Failed to send confirmation email to {email}: {str(e)}")
         return None
